@@ -9,7 +9,7 @@ import pandas as pd
 import random
 
 charging_time = 60 * 5  # time to charge fo a full battery in minutes
-distance_per_charge = 300  # range a car that travle on full battery in km
+distance_per_charge = 300  # range a car that travel on full battery in km
 speed_of_charging = distance_per_charge / charging_time
 
 # charging_stations_count = 10
@@ -163,6 +163,7 @@ def update_car_status(trips_data, current_time):
                 next_car_id = queue.pop(0)
                 next_car_idx = fleet[fleet['car_id'] == next_car_id].index[0]
                 fleet.at[next_car_idx, "status"] = "charging"
+                fleet.at[next_car_idx, "charging_station_id"] = station_id
                 charging_stations.at[station_idx, 'occupied_slot'][charging_slot] = next_car_id
                 charging_stations.at[station_idx, 'estimated_time_to_charge'][charging_slot] = (
                     distance_per_charge - fleet.at[next_car_idx, 'battery_level']) / speed_of_charging
@@ -212,7 +213,7 @@ def run_daily_simulation(trips_data_day, start_time, fleet, charging_stations, m
 
 
 fleet_sizes = [100, 500, 1000, 2000, 3500]
-charging_stations_counts = [20, 100, 200, 400, 700]
+charging_stations_counts = [10, 50, 100, 200, 350]
 
 for i in range(len(fleet_sizes)):
 
@@ -259,17 +260,17 @@ for i in range(len(fleet_sizes)):
 
         final_completed_trips = pd.concat([completed_trips, lost_trips], axis=0)
 
-        file_path = Path(f"../results/saev_completed_trips_day_{fleet_size}.parquet")
+        file_path = Path(f"../results/saev_completed_moder_charging_trips_day_{fleet_size}.parquet")
         if file_path.exists():
-            final_completed_trips.to_parquet(f"../results/saev_completed_trips_day_{fleet_size}.parquet",
+            final_completed_trips.to_parquet(f"../results/saev_completed_moder_charging_trips_day_{fleet_size}.parquet",
                                              engine='fastparquet', append=True, index=False)
-            online_cars.to_parquet(f"../results/saev_online_cars_day_{fleet_size}.parquet", engine='fastparquet',
+            online_cars.to_parquet(f"../results/saev_online_moder_charging_cars_day_{fleet_size}.parquet", engine='fastparquet',
                                    append=True, index=False)
         else:
-            final_completed_trips.to_parquet(f"../results/saev_completed_trips_day_{fleet_size}.parquet",
+            final_completed_trips.to_parquet(f"../results/saev_completed_moder_charging_trips_day_{fleet_size}.parquet",
                                              engine='fastparquet', index=False)
-            online_cars.to_parquet(f"../results/saev_online_cars_day_{fleet_size}.parquet", engine='fastparquet',
+            online_cars.to_parquet(f"../results/saev_online_moder_charging_cars_day_{fleet_size}.parquet", engine='fastparquet',
                                    index=False)
 
-        fleet.to_csv(f"../setup/saev_fleet_final_{fleet_size}.csv", index=False)
-        charging_stations.to_csv(f"../setup/saev_stations_final_{fleet_size}.csv", index=False)
+        fleet.to_csv(f"../setup/saev_moder_charging_fleet_final_{fleet_size}.csv", index=False)
+        charging_stations.to_csv(f"../setup/saev_moder_charging_stations_final_{fleet_size}.csv", index=False)
