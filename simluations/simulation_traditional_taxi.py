@@ -1,5 +1,6 @@
 from datetime import datetime
 from simulation_functions import greedy_two_pass_assignment, calculate_on_line_cars
+from paths_config import MEAN_DISTANCE_TIME_PATH, DAILY_TRIPS_DIR, RESULTS_DIR, SETUP_DIR
 import uuid
 import os
 from pathlib import Path
@@ -11,7 +12,7 @@ import random
 max_wait_time = 900
 co2_per_km = 4.8
 
-mean_distance_time = pd.read_csv('../dataset/mean_distance_time.csv')
+mean_distance_time = pd.read_csv(MEAN_DISTANCE_TIME_PATH)
 unique_locations = pd.concat([mean_distance_time['PULocationID'], mean_distance_time['DOLocationID']]).unique()
 
 start_hour = 6
@@ -143,16 +144,21 @@ for i in range(len(fleet_sizes)):
 
     current_trips = pd.DataFrame()
 
-    folder_path = '../dataset/daily_trips'
+    folder_path = DAILY_TRIPS_DIR
     file_paths = sorted(
-        [os.path.join(folder_path, f) for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+        [folder_path / f for f in os.listdir(folder_path) if (folder_path / f).is_file()]
     )
 
     for file_path in file_paths:
         print(f"Running simulation for day {file_path}")
-        start_time = datetime.strptime(file_path.split('_')[-1].split('.')[0], '%Y-%m-%d')
-
-        day_trips = pd.concat([current_trips, pd.read_parquet(file_path)], ignore_index=True)
+        day_trips = pd.concat([current_trips, pd.read_parquet(str(file_path), engine='fastparquet')], ignore_index=True)
+        day_trips['request_datetime'] = pd.to_datetime(day_trips['request_datetime'])
+        day_trips = day_trips.sort_values('request_datetime').reset_index(drop=True)
+        # start_time по дате текущего файла (trips_YYYY-MM-DD), иначе при переносе current_trips
+        # с прошлого дня min(day_trips) = старый день и новые поездки не попадают в окно
+        file_path = Path(file_path)
+        day_date_str = file_path.stem.replace('trips_', '')
+        start_time = pd.Timestamp(day_date_str).normalize()
 
         completed_trips, current_trips, lost_trips, online_cars, fleet = run_daily_simulation(
             day_trips,
@@ -162,17 +168,17 @@ for i in range(len(fleet_sizes)):
 
         final_completed_trips = pd.concat([completed_trips, lost_trips], axis=0)
 
-        file_path = Path(f"../results/trad_completed_trips_day_{fleet_size}.parquet")
+        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        SETUP_DIR.mkdir(parents=True, exist_ok=True)
+        completed_path = RESULTS_DIR / f"trad_completed_trips_day_{fleet_size}.parquet"
+        online_path = RESULTS_DIR / f"trad_online_cars_day_{fleet_size}.parquet"
 
-        if file_path.exists():
-            final_completed_trips.to_parquet(f"../results/trad_completed_trips_day_{fleet_size}.parquet",
-                                             engine='fastparquet', append=True, index=False)
-            online_cars.to_parquet(f"../results/trad_online_cars_day_{fleet_size}.parquet", engine='fastparquet',
-                                   append=True, index=False)
-        else:
-            final_completed_trips.to_parquet(f"../results/trad_completed_trips_day_{fleet_size}.parquet",
-                                             engine='fastparquet', index=False)
-            online_cars.to_parquet(f"../results/trad_online_cars_day_{fleet_size}.parquet", engine='fastparquet',
-                                   index=False)
+        if completed_path.exists():
+            existing = pd.read_parquet(str(completed_path), engine='pyarrow')
+            final_completed_trips = pd.concat([existing, final_completed_trips], ignore_index=True)
+            existing_online = pd.read_parquet(str(online_path), engine='pyarrow')
+            online_cars = pd.concat([existing_online, online_cars], ignore_index=True)
+        final_completed_trips.to_parquet(str(completed_path), engine='pyarrow', index=False)
+        online_cars.to_parquet(str(online_path), engine='pyarrow', index=False)
 
-        fleet.to_csv(f"../setup/trad_fleet_final_{fleet_size}.csv", index=False)
+        fleet.to_csv(str(SETUP_DIR / f"trad_fleet_final_{fleet_size}.csv"), index=False)

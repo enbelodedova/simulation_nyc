@@ -8,18 +8,13 @@ import pandas as pd
 
 import random
 
+
 def greedy_two_pass_assignment(valid_combinations):
     valid_combinations = valid_combinations.sort_values('est_time_to_pickup').copy()
+    first_pass = valid_combinations.drop_duplicates(subset='trip_id', keep='first').drop_duplicates(subset='car_id', keep='first')
+    assigned_trips, assigned_cars = set(first_pass['trip_id']), set(first_pass['car_id'])
 
-    first_pass = valid_combinations.drop_duplicates(subset='trip_id', keep='first')
-    first_pass = first_pass.drop_duplicates(subset='car_id', keep='first')
-
-    assigned_trips = set(first_pass['trip_id'])
-    assigned_cars = set(first_pass['car_id'])
-
-    remaining_combos = valid_combinations[
-        ~valid_combinations['trip_id'].isin(assigned_trips) &
-        ~valid_combinations['car_id'].isin(assigned_cars)
+    remaining_combos = valid_combinations[~valid_combinations['trip_id'].isin(assigned_trips) & ~valid_combinations['car_id'].isin(assigned_cars)
         ].copy()
 
     second_pass = []
@@ -39,10 +34,8 @@ def greedy_two_pass_assignment(valid_combinations):
 
             best_row = valid_rows.iloc[0]
             second_pass.append(best_row)
-
             assigned_trips.add(best_row['trip_id'])
             assigned_cars.add(best_row['car_id'])
-
             remaining_combos = remaining_combos[
                 (remaining_combos['trip_id'] != best_row['trip_id']) &
                 (remaining_combos['car_id'] != best_row['car_id'])
